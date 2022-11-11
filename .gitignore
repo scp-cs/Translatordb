@@ -1,2 +1,4 @@
-/PrekladyNew.csv
-/PrekladyNew.xlsx
+*.csv
+*.xlsx
+*.txt
+!requirements.txt
