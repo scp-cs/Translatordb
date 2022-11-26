@@ -1,5 +1,4 @@
 # Built-ins
-from email.policy import default
 import json
 import re
 import os
@@ -16,18 +15,29 @@ from prettytable import PrettyTable
 # Constants
 filename_default = "translations.json"
 page_length = 15
+rewrite_urls = {"https://scp-wiki": "http://scp-cs", "https://wanderers-library": "http://wanderers-library-cs"}    # Imagine making people pay extra for HTTPS in 2022, what the fuck
 
 # Global vars
 db = {}
 selected_user = ""
 
+# Couldn't find a fancy "pythonic" way to do this, at least you can do one-line ifs
+def get_role_color(user):
+    if user['exception']: return Fore.MAGENTA
+    points = user['total_points']
+    if points < 5: return Fore.WHITE
+    elif points < 10: return Fore.CYAN
+    elif points < 25: return Fore.GREEN
+    elif points < 50: return Fore.YELLOW
+    elif points < 100: return Fore.RED
+    else: return Fore.MAGENTA
+        
 def write_db():
     try:
         with open(filename_default, "w", encoding="utf-8") as dbfile:
             json.dump(db, dbfile)
     except IOError as e:
         print(Fore.RED + "Chyba při zápisu: " + str(e) + Fore.RESET)
-
 
 def print_kv(key, value, color):
     print(f"{key}: {color}{value}{Fore.RESET}{Back.RESET}")
@@ -42,24 +52,34 @@ def select_user():
         selected_user = name
         system("cls")
         print(Fore.GREEN + f"\nVybrán uživatel {name}." + Fore.RESET)
-        return True
+        user_menu()
+        return
     else:
         for user in db:
             if name == db[user]['discord_id'] or name == db[user]['wikidot']:
                 system("cls")
                 print(Fore.GREEN + f"\nVybrán uživatel {user}." + Fore.RESET)
                 selected_user = user
-                return True
+                user_menu()
+                return
     print(Fore.RED + f'\nUživatel "{name}" nenalezen' + Fore.RESET)
-    return False
+    readkey()
+    system('cls')
 
 def display_translation_table(user):
     item_count = len(user['articles'])
     def show_tab(start_row, row_count):
         tab = PrettyTable()
         tab.field_names = ['č.', 'Název', 'Počet bodů', 'Potřebný překlad?', "Odkaz"]
+
         for idx, article in enumerate(list(user['articles'].items())[start_row:start_row+row_count]):
-            tab.add_row([idx+start_row+1, article[0], format(int(article[1]['word_count'])/1000, ".2f"), (Fore.GREEN + "ANO" if article[1]['bonus_points'] == 1 else Fore.RED + "NE") + Fore.RESET, article[1]['wd_link']])
+            tab.add_row([
+            idx+start_row+1, 
+            article[0], 
+            format(int(article[1]['word_count'])/1000, ".2f"), 
+            (Fore.GREEN + "ANO" if article[1]['bonus_points'] == 1 else Fore.RED + "NE") + Fore.RESET, 
+            article[1]['wd_link']])
+
         print(tab)
         print(f"Zobrazuji {start_row} - {start_row+row_count if start_row + row_count < item_count else item_count} z {item_count} položek")
     page = 0
@@ -77,25 +97,63 @@ def display_translation_table(user):
 
 def display_user_table():
     item_count = len(db)
+    sort_abc = False  # False = by points, True = alphabetical
+
     def show_tab(start_row, row_count):
         tab = PrettyTable()
         tab.field_names = ['č.', 'Přezdívka', 'Wikidot', 'Počet bodů', "Články", "Discord ID"]
-        for idx, user in enumerate(list(db.items())[start_row:start_row+row_count]):
-            tab.add_row([idx+start_row+1, user[0], user[1]['wikidot'], (Fore.MAGENTA + "ano."if user[1]['exception'] else Fore.CYAN + format(user[1]['total_points'], ".2f")) + Fore.RESET, len(db[user[0]]['articles']), user[1]['discord_id']])
+
+        if sort_abc:
+            values = list(sorted(db.items(), key=lambda item: item[0]))
+        else:
+            values = list(sorted(db.items(), key=lambda item: item[1]['total_points'], reverse=True))
+
+        for idx, user in enumerate(values[start_row:start_row+row_count]):
+            points = user[1]['total_points']
+
+            tab.add_row([
+            idx+start_row+1, 
+            user[0], 
+            user[1]['wikidot'], 
+            get_role_color(user[1]) + ("ano." if user[1]['exception'] else format(points, ".2f")) + Fore.RESET, 
+            len(user[1]['articles']), 
+            user[1]['discord_id']])
+
         print(tab)
         print(f"Zobrazuji {start_row} - {start_row+row_count if start_row + row_count < item_count else item_count} z {item_count} položek")
+        
     page = 0
     while True:
         os.system("cls")
         show_tab(page*page_length, page_length)
         k = readkey()
         match k:
-            case key.RIGHT:
+            case key.RIGHT: 
                 if page < len(db)/page_length-1: page += 1
-            case key.LEFT:
+            case key.LEFT: 
                 if page > 0: page -= 1
-            case key.ESC | key.ESC_2 | 'q':
+            case key.ESC | key.ESC_2 | 'q': 
+                system('cls')
                 return
+            case 's': sort_abc = not sort_abc
+
+def add_user():
+    global db
+    nick = input("Zadejte přezdívku: ")
+    did = input("Zadejte Discord ID: ")
+    wid = input("Zadejte Wikidot ID: ")
+    print("Vyloučit z počítání bodů? [A/N]")
+    exc_key = readkey()
+    match exc_key:
+        case 'y' | 'Y' | 'a' | 'A':
+            exc = True
+        case _:
+            exc = False
+    db[nick] = {'discord_id': did, 'wikidot': wid, 'total_points': 0 if not exc else 9999, 'role_level': 0, 'exception': exc, 'articles': {}}
+    write_db()
+    print(Fore.GREEN + "Uživatel přidán. Stiskněte cokoliv pro pokračování" + Fore.RESET)
+    readkey()
+    system('cls')
 
 def user_menu():
     global selected_user
@@ -132,7 +190,6 @@ def user_menu():
                             wdlink = "https://scp-cs.wikidot.com/" + article_name.lower()
                         else:
                             # Automatically rewrite EN wiki links to CS
-                            # TODO: Funguje to ale vypadá to hrozně
                             article_link = input("Odkaz na článek: ")
                             wdlink = "NULL" if article_link.isspace() else article_link.replace('https://scp-wiki', 'http://scp-cs', 1).replace('https://wanderers-library', 'http://wanderers-library-cs')
 
@@ -158,6 +215,7 @@ def user_menu():
 
 if __name__ == "__main__":
     system("cls")
+    system("title SCiPNET v1.4")
     init()
     print(Fore.GREEN + "Vítá vás HR databáze SCiPNETu!" + Fore.RESET)
     print(Fore.YELLOW + f"Otevírám soubor {filename_default}..." + Fore.RESET)
@@ -168,45 +226,14 @@ if __name__ == "__main__":
         inp = input("Zvolte možnost: ")
         try:
             a = int(inp)
-            if 0 < a < 6:
-                match a:
-                    case 1:
-                        if(select_user()):
-                            user_menu()
-                        else:
-                            print("Pro pokračování stiskněte cokoliv")
-                            readkey()
-                            system("cls")
-                            continue;
-                        pass
-                    case 2:
-                        display_user_table()
-                        system('cls')
-                        pass
-                    case 3:
-                        nick = input("Zadejte přezdívku: ")
-                        did = input("Zadejte Discord ID: ")
-                        wid = input("Zadejte Wikidot ID: ")
-                        print("Vyloučit z počítání bodů? [A/N]")
-                        exc_key = readkey()
-                        match exc_key:
-                            case 'y' | 'Y' | 'a' | 'A':
-                                exc = True
-                            case _:
-                                exc = False
-                        db[nick] = {'discord_id': did, 'wikidot': wid, 'total_points': 0, 'role_level': 0, 'exception': exc, 'articles': {}}
-                        write_db()
-                        print(Fore.GREEN + "Uživatel přidán. Stiskněte cokoliv pro pokračování" + Fore.RESET)
-                        readkey()
-                        system('cls')
-                        pass
-                    case 4:
-                        print(Fore.RED + "Sbohem, Administrátore." + Fore.RESET)
-                        exit(0)
-                        pass
-            else:
-                system("cls")
-                continue
+            if a < 0 or a > 6: raise ValueError
+            match a:
+                case 1: select_user()
+                case 2: display_user_table()
+                case 3: add_user()
+                case 4:
+                    print(Fore.RED + "Sbohem, Administrátore." + Fore.RESET)
+                    exit(0)
         except ValueError:
             system("cls")
             continue

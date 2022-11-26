@@ -1,3 +1,6 @@
+# Script used to convert the old excel tables (exported as CSV) to JSON
+# Including it here just in case
+
 import csv
 import json
 
