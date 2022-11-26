@@ -16,6 +16,7 @@ from prettytable import PrettyTable
 filename_default = "translations.json"
 page_length = 15
 rewrite_urls = {"https://scp-wiki": "http://scp-cs", "https://wanderers-library": "http://wanderers-library-cs"}    # Imagine making people pay extra for HTTPS in 2022, what the fuck
+rgx_scp = re.compile(r"^SCP-\d{3,4}((-J)?|(-ARC)?|(-D)?)$")
 
 # Global vars
 db = {}
@@ -188,7 +189,7 @@ def user_menu():
                         article_bonus = input("Bonusové body: ")
                         
                         # Find link to normal SCPs
-                        if re.match(r"^SCP-\d{3,4}(-J)?$", article_name):
+                        if rgx_scp.match(article_name):
                             wdlink = "https://scp-cs.wikidot.com/" + article_name.lower()
                         else:
                             # Automatically rewrite EN wiki links to CS
@@ -197,6 +198,7 @@ def user_menu():
 
                         db[selected_user]['articles'][article_name] = {'word_count': int(article_words), 'bonus_points': int(article_bonus), 'wd_link': wdlink}
 
+                        # Recalculate points every time an entry is added, just in case the JSON was edited manually
                         db[selected_user]['total_points'] = sum(map(lambda x: int(x['word_count']) + 1000*int(x['bonus_points']), db[selected_user]['articles'].values())) / 1000
 
                         write_db()
@@ -228,7 +230,7 @@ if __name__ == "__main__":
         with open(filename_default, "r", encoding="utf-8") as dbfile:
             db = json.load(dbfile)
     except json.JSONDecodeError:
-        print(Fore.RED + "Chyba dekódování JSON, soubor byl pravděpodobně poškozen.")
+        print(Fore.RED + "Chyba dekódování JSON, soubor je pravděpodobně poškozen.")
         exit(-1)
     except IOError:
         print(Fore.RED + "Chyba při čtení souboru, zkontrolujte umístění a přístupová práva.")
