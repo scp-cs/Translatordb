@@ -39,11 +39,7 @@ def write_db():
     except IOError as e:
         print(Fore.RED + "Chyba při zápisu: " + str(e))
 
-def print_kv(key, value, color):
-    print(f"{key}: {color}{value}{Fore.RESET}{Back.RESET}")
-
-def print_menu():
-    print(Fore.YELLOW + "\nMENU" + Fore.RESET + "\n1. Vybrat uživatele\n2. Zobrazit seznam uživatelů\n3. Přidat nového uživatele\n4. Odejít\n")
+def print_kv(key, value, color): print(f"{key}: {color}{value}{Fore.RESET}{Back.RESET}")
 
 def url_rewrite(url):
     new_url = url
@@ -227,10 +223,19 @@ if __name__ == "__main__":
     init(autoreset=True)
     print(Fore.GREEN + "Vítá vás HR databáze SCiPNETu!")
     print(Fore.YELLOW + f"Otevírám soubor {filename_default}...")
-    with open(filename_default, "r+", encoding="utf-8") as dbfile:
-        db = json.load(dbfile)
+
+    try:
+        with open(filename_default, "r", encoding="utf-8") as dbfile:
+            db = json.load(dbfile)
+    except json.JSONDecodeError:
+        print(Fore.RED + "Chyba dekódování JSON, soubor byl pravděpodobně poškozen.")
+        exit(-1)
+    except IOError:
+        print(Fore.RED + "Chyba při čtení souboru, zkontrolujte umístění a přístupová práva.")
+        exit(-1)
+
     while True: 
-        print_menu()
+        print(Fore.YELLOW + "\nMENU" + Fore.RESET + "\n1. Vybrat uživatele\n2. Zobrazit seznam uživatelů\n3. Přidat nového uživatele\n4. Odejít\n")
         inp = input("Zvolte možnost: ")
         try:
             a = int(inp)
