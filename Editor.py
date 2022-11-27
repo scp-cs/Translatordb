@@ -35,10 +35,10 @@ def get_role_color(user):
         
 def write_db():
     try:
-        with open(filename_default, "w", encoding="utf-8") as dbfile:
-            json.dump(db, dbfile)
+        with open(filename_default, "w", encoding="utf-8") as dbfile: json.dump(db, dbfile)
     except IOError as e:
         print(Fore.RED + "Chyba při zápisu: " + str(e))
+        exit(-1)
 
 def print_kv(key, value, color): print(f"{key}: {color}{value}{Fore.RESET}{Back.RESET}")
 
@@ -71,11 +71,18 @@ def select_user():
 
 def display_translation_table(user):
     item_count = len(user['articles'])
+    sort_new = True    # False = sort by word count, True = by newest
+
     def show_tab(start_row, row_count):
         tab = PrettyTable()
         tab.field_names = ['č.', 'Název', 'Počet bodů', 'Potřebný překlad?', "Odkaz"]
 
-        for idx, article in enumerate(list(user['articles'].items())[start_row:start_row+row_count]):
+        if sort_new:
+            values = list(user['articles'].items())[::-1]   # Reverse the list so that newest translations show first
+        else:
+            values = list(sorted(user['articles'].items(), key= lambda a: a[1]['word_count'], reverse=True))
+
+        for idx, article in enumerate(values[start_row:start_row+row_count]):
             tab.add_row([
             idx+start_row+1, 
             article[0], 
@@ -97,6 +104,8 @@ def display_translation_table(user):
                 if page > 0: page -= 1
             case key.ESC | key.ESC_2 | 'q':
                 return
+            case 's':
+                sort_new = not sort_new
 
 def display_user_table():
     item_count = len(db)
@@ -172,7 +181,7 @@ def user_menu():
         print_kv("Wikidot účet", user['wikidot'], Fore.CYAN)
         print_kv("Celkem bodů", "Ano" if user['exception'] else format(user['total_points'], '.2f'), Fore.CYAN)
         print_kv("Poslední zapsaný překlad", last_article, Fore.CYAN)
-        print(Fore.YELLOW + "\nMENU" + Fore.RESET + "\n1. Zobrazit seznam přeložených článků\n2. Přidat přeložený článek\n3. Odebrat uživatele\n4. Zpět\n")
+        print(Fore.YELLOW + "\nMENU" + Fore.RESET + "\n1. Zobrazit seznam přeložených článků\n2. Přidat / upravit přeložený článek\n3. Odebrat uživatele\n4. Zpět\n")
     
     while True: 
         print_user_menu()
@@ -188,8 +197,8 @@ def user_menu():
                         article_words = input("Počet slov: ")
                         article_bonus = input("Bonusové body: ")
                         
-                        # Find link to normal SCPs
-                        if rgx_scp.match(article_name):
+                        # Find link to normal SCPs, always ask if editing an existing entry
+                        if rgx_scp.match(article_name) and article_name not in db[selected_user]['articles']:
                             wdlink = "https://scp-cs.wikidot.com/" + article_name.lower()
                         else:
                             # Automatically rewrite EN wiki links to CS
